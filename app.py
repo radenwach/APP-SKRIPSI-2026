@@ -5,7 +5,7 @@ import numpy as np
 import time
 import pandas as pd
 import plotly.express as px
-import os
+from streamlit_gsheets import GSheetsConnection
 from tensorflow.keras.preprocessing import image as keras_image
 
 # --- KONFIGURASI HALAMAN ---
@@ -120,7 +120,10 @@ if menu == "Beranda":
         st.info("💡 Sistem ini dirancang untuk membaca konteks pencahayaan, tekstur, dan latar belakang potret secara utuh.")
 
     with col_kanan:
-        st.image("ilustrasi.png", use_container_width=True)
+        try:
+            st.image("ilustrasi.png", use_container_width=True)
+        except:
+            st.empty() # Mencegah error jika file ilustrasi.png tidak ditemukan
 
 # --- PREDIKSI ---
 elif menu == "Prediksi":
@@ -175,19 +178,24 @@ elif menu == "Prediksi":
                     # Box info bawaan untuk metrik tambahan
                     st.info(f"Waktu Pemrosesan: {waktu_inferensi:.2f} detik")
                     
-                    # --- SIMPAN PERMANEN KE CSV ---
-                    file_path = 'riwayat_statistik.csv'
-                    df_baru = pd.DataFrame([{
-                        "Nama Berkas": uploaded_file.name,
-                        "Hasil": hasil_label,
-                        "Akurasi (%)": prob_final * 100,
-                        "Waktu (s)": waktu_inferensi
-                    }])
-                    
-                    if not os.path.exists(file_path):
-                        df_baru.to_csv(file_path, index=False)
-                    else:
-                        df_baru.to_csv(file_path, mode='a', header=False, index=False)
+                    # --- SIMPAN PERMANEN KE GOOGLE SHEETS ---
+                    try:
+                        conn = st.connection("gsheets", type=GSheetsConnection)
+                        df_lama = conn.read(worksheet="Sheet1", usecols=list(range(4)))
+                        
+                        df_baru = pd.DataFrame([{
+                            "Nama Berkas": uploaded_file.name,
+                            "Hasil": hasil_label,
+                            "Akurasi (%)": prob_final * 100,
+                            "Waktu (s)": waktu_inferensi
+                        }])
+                        
+                        df_lama = df_lama.dropna(how="all")
+                        df_update = pd.concat([df_lama, df_baru], ignore_index=True)
+                        
+                        conn.update(worksheet="Sheet1", data=df_update)
+                    except Exception as e:
+                        st.warning(f"Terjadi kesalahan saat menyimpan ke Google Sheets: {e}")
                         
         else:
             st.info("Silakan unggah potret terlebih dahulu untuk memulai prediksi.")
@@ -197,10 +205,11 @@ elif menu == "Statistik":
     st.header("Dasbor Statistik")
     st.write("Panel pemantauan analitik penggunaan sistem secara keseluruhan.")
     
-    file_path = 'riwayat_statistik.csv'
-    
-    if os.path.exists(file_path):
-        df_stat = pd.read_csv(file_path)
+    try:
+        # Menghubungkan dan membaca dari Google Sheets (ttl=0 agar data selalu update realtime)
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        df_stat = conn.read(worksheet="Sheet1", usecols=list(range(4)), ttl=0)
+        df_stat = df_stat.dropna(how="all")
         
         if len(df_stat) > 0:
             total_data = len(df_stat)
@@ -227,13 +236,17 @@ elif menu == "Statistik":
                 df_display.index = df_display.index + 1 
                 st.dataframe(df_display, use_container_width=True)
                 
+                # Menghapus semua riwayat di Google Sheets
                 if st.button("Hapus Semua Riwayat", use_container_width=True):
-                    os.remove(file_path)
+                    # Timpa dengan DataFrame kosong (hanya header)
+                    df_kosong = pd.DataFrame(columns=["Nama Berkas", "Hasil", "Akurasi (%)", "Waktu (s)"])
+                    conn.update(worksheet="Sheet1", data=df_kosong)
                     st.rerun()
         else:
-            st.info("File riwayat ada, tetapi masih kosong.")
-    else:
-        st.info("Belum ada data statistik. Silakan lakukan deteksi pada potret di menu 'Prediksi' terlebih dahulu.")
+            st.info("Riwayat prediksi masih kosong. Silakan lakukan deteksi terlebih dahulu.")
+            
+    except Exception as e:
+        st.error(f"Gagal memuat data dari Google Sheets. Pastikan koneksi dan Secrets sudah dikonfigurasi dengan benar. Error: {e}")
 
 # --- TENTANG ---
 elif menu == "Tentang":
