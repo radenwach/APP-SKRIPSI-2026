@@ -1,6 +1,6 @@
 import streamlit as st
 import tensorflow as tf
-from PIL import Image, ImageOps
+from PIL import Image
 import numpy as np
 import time
 import pandas as pd
@@ -45,6 +45,7 @@ st.markdown("""
         text-align: center;
         margin: 0;
     }
+    
     /* --- GAYA BARU UNTUK BOX UPLOAD --- */
     [data-testid="stFileUploadDropzone"] {
         border: 2px dashed #007BFF; /* Garis putus-putus warna biru */
@@ -53,6 +54,7 @@ st.markdown("""
         padding: 20px;
         transition: all 0.3s ease;  /* Efek transisi halus */
     }
+    
     /* Efek saat mouse diarahkan ke kotak upload */
     [data-testid="stFileUploadDropzone"]:hover {
         background-color: #e1effe;
@@ -64,23 +66,18 @@ st.markdown("""
 # --- LOAD MODEL ---
 @st.cache_resource
 def load_my_model():
-    # Pastikan file model berada di folder yang sama dengan script ini
+    # Pastikan file model berada di folder yang sama dengan app.py
     model = tf.keras.models.load_model('model_efficientnet_adamw.keras')
     return model
 
-try:
-    model = load_my_model()
-except Exception as e:
-    st.error(f"Gagal memuat model. Pastikan file model tersedia. Error: {e}")
-    st.stop()
+model = load_my_model()
 
-# --- FUNGSI PREDIKSI (Kualitas Resizing LANCZOS) ---
+# --- FUNGSI PREDIKSI ---
 def predict(img, model):
     if img.mode != "RGB":
         img = img.convert("RGB")
 
-    # Menggunakan LANCZOS untuk kualitas downsampling yang lebih baik pada CNN
-    img_resized = img.resize((224, 224), Image.Resampling.LANCZOS)
+    img_resized = img.resize((224, 224), Image.NEAREST)
     img_array = keras_image.img_to_array(img_resized)
     img_array = np.expand_dims(img_array, axis=0)
 
@@ -90,7 +87,7 @@ def predict(img, model):
 # --- SIDEBAR ---
 with st.sidebar:
     st.title("Navigasi Sistem")
-    
+
     # Menambahkan parameter use_container_width=True agar tombol memanjang penuh
     if st.button("BERANDA", use_container_width=True):
         st.session_state.menu = "Beranda"
@@ -108,10 +105,10 @@ menu = st.session_state.menu
 if menu == "Beranda":
     # Menambahkan jarak ke bawah khusus untuk halaman Beranda
     st.markdown("<div style='margin-top: 50px;'></div>", unsafe_allow_html=True)
-    
+
     # Membuat proporsi 1.5 untuk teks (kiri) dan 1 untuk gambar (kanan)
     col_kiri, col_kanan = st.columns([1.5, 1])
-    
+
     with col_kiri:
         st.title("Sistem Deteksi AI-Generated Portrait")
         st.write("""
@@ -126,7 +123,7 @@ if menu == "Beranda":
         try:
             st.image("ilustrasi.png", use_container_width=True)
         except:
-            pass # Mengabaikan jika file tidak ditemukan tanpa merusak UI
+            st.empty() # Mencegah error jika file ilustrasi.png tidak ditemukan
 
 # --- PREDIKSI ---
 elif menu == "Prediksi":
@@ -137,79 +134,69 @@ elif menu == "Prediksi":
     with col1:
         uploaded_file = st.file_uploader("Unggah Potret Manusia (JPG/PNG)", type=["jpg", "jpeg", "png"])
         if uploaded_file is not None:
-            try:
-                # 1. Membuka gambar asli
-                original_image = Image.open(uploaded_file)
-                # 2. Koreksi Orientasi EXIF
-                fixed_image = ImageOps.exif_transpose(original_image)
-                # 3. Menampilkan gambar yang sudah dikoreksi
-                st.image(fixed_image, caption="Citra yang Diunggah", width=350)
-            except Exception as e:
-                st.error(f"Gagal memproses gambar: {e}")
-                # Fallback jika terjadi error EXIF
-                fixed_image = Image.open(uploaded_file)
-                st.image(fixed_image, caption="Citra Asli", width=350)
+            image_uploaded = Image.open(uploaded_file)
+            st.image(image_uploaded, caption="Citra yang Diunggah", width=350)
 
     with col2:
+        # --- TAMBAHAN JARAK AGAR HASIL PREDIKSI AGAK KE BAWAH ---
         st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
+
         st.subheader("Hasil Prediksi")
-        
         if uploaded_file is not None:
             if st.button("Mulai Prediksi", use_container_width=True):
-                if 'fixed_image' in locals():
-                    with st.spinner('Menganalisis fitur citra...'):
-                        start_time = time.time()
-                        result = predict(fixed_image, model)
-                        end_time = time.time()
+                with st.spinner('Menganalisis fitur citra...'):
+                    start_time = time.time()
+                    result = predict(image_uploaded, model)
+                    end_time = time.time()
 
-                        waktu_inferensi = end_time - start_time
-                        prob_real = float(result[0][0])
-                        prob_fake = 1 - prob_real
+                    waktu_inferensi = end_time - start_time
+                    prob_real = float(result[0][0])
+                    prob_fake = 1 - prob_real
 
-                        # Implementasi Threshold (0.6)
-                        THRESHOLD = 0.6
-                        if prob_real > THRESHOLD:
-                            hasil_label = "ASLI (REAL)"
-                            prob_final = prob_real
-                            warna_teks = '#155724'
-                            bg_color = '#d4edda'
-                        else:
-                            hasil_label = "AI (FAKE)"
-                            prob_final = prob_fake
-                            warna_teks = '#FF0000'
-                            bg_color = '#f8d7da'
+                    # --- IMPLEMENTASI THRESHOLD & KOTAK HASIL KUSTOM ---
+                    THRESHOLD = 0.6
+                    if prob_real > THRESHOLD:
+                        hasil_label = "ASLI (REAL)"
+                        prob_final = prob_real
+                        warna_teks = '#155724' # Hijau tua untuk teks
+                        bg_color = '#d4edda'   # Hijau muda untuk latar
+                    else:
+                        hasil_label = "AI (FAKE)"
+                        prob_final = prob_fake
+                        warna_teks = '#FF0000' # Merah cerah menyala untuk teks
+                        bg_color = '#f8d7da'   # Merah muda untuk latar
 
-                        # Menampilkan kotak hasil dengan font besar dari HTML
-                        st.markdown(f"""
-                            <div style='background-color: {bg_color}; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid {warna_teks}40;'>
-                                <div class='result-text' style='color: {warna_teks};'>
-                                    PREDIKSI: {hasil_label}
-                                </div>
+                    # Menampilkan kotak hasil dengan font besar dari HTML
+                    st.markdown(f"""
+                        <div style='background-color: {bg_color}; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid {warna_teks}40;'>
+                            <div class='result-text' style='color: {warna_teks};'>
+                                PREDIKSI: {hasil_label}
                             </div>
-                        """, unsafe_allow_html=True)
+                        </div>
+                    """, unsafe_allow_html=True)
 
-                        st.info(f"Waktu Pemrosesan: {waktu_inferensi:.2f} detik")
-                        st.write(f"Keyakinan Model: {prob_final * 100:.2f}%")
+                    # Box info bawaan untuk metrik tambahan
+                    st.info(f"Waktu Pemrosesan: {waktu_inferensi:.2f} detik")
 
-                        # Simpan ke Google Sheets
-                        try:
-                            conn = st.connection("gsheets", type=GSheetsConnection)
-                            df_lama = conn.read(worksheet="Sheet1", usecols=list(range(4)))
-                            df_lama = df_lama.dropna(how="all")
+                    # --- SIMPAN PERMANEN KE GOOGLE SHEETS ---
+                    try:
+                        conn = st.connection("gsheets", type=GSheetsConnection)
+                        df_lama = conn.read(worksheet="Sheet1", usecols=list(range(4)))
 
-                            df_baru = pd.DataFrame([{
-                                "Nama Berkas": uploaded_file.name,
-                                "Hasil": hasil_label,
-                                "Akurasi (%)": prob_final * 100,
-                                "Waktu (s)": waktu_inferensi
-                            }])
+                        df_baru = pd.DataFrame([{
+                            "Nama Berkas": uploaded_file.name,
+                            "Hasil": hasil_label,
+                            "Akurasi (%)": prob_final * 100,
+                            "Waktu (s)": waktu_inferensi
+                        }])
 
-                            df_update = pd.concat([df_lama, df_baru], ignore_index=True)
-                            conn.update(worksheet="Sheet1", data=df_update)
-                        except Exception as e:
-                            st.warning(f"Gagal menyimpan ke Google Sheets: {e}")
-                else:
-                    st.error("Gambar belum dimuat dengan benar.")
+                        df_lama = df_lama.dropna(how="all")
+                        df_update = pd.concat([df_lama, df_baru], ignore_index=True)
+
+                        conn.update(worksheet="Sheet1", data=df_update)
+                    except Exception as e:
+                        st.warning(f"Terjadi kesalahan saat menyimpan ke Google Sheets: {e}")
+
         else:
             st.info("Silakan unggah potret terlebih dahulu untuk memulai prediksi.")
 
@@ -217,45 +204,47 @@ elif menu == "Prediksi":
 elif menu == "Statistik":
     st.header("Dasbor Statistik")
     st.write("Panel pemantauan analitik penggunaan sistem secara keseluruhan.")
-    
+
     try:
+        # Menghubungkan dan membaca dari Google Sheets (ttl=0 agar data selalu update realtime)
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_stat = conn.read(worksheet="Sheet1", usecols=list(range(4)), ttl=0)
         df_stat = df_stat.dropna(how="all")
-        
+
         if len(df_stat) > 0:
             total_data = len(df_stat)
             rata_waktu = df_stat["Waktu (s)"].mean()
-            
+
             col1, col2, col3 = st.columns(3)
             col1.metric(label="Total Citra Diproses", value=f"{total_data} Citra")
-            col2.metric(label="Akurasi Model", value="87.0%") 
+            col2.metric(label="Akurasi Model Yang Digunakan", value="87.0%") 
             col3.metric(label="Rata-rata Waktu Inferensi", value=f"{rata_waktu:.2f} s")
-            
+
             st.markdown("---")
-            
+
             st.subheader("Distribusi Klasifikasi")
             distribusi = df_stat["Hasil"].value_counts().reset_index()
             distribusi.columns = ['Klasifikasi', 'Jumlah']
-            
-            # Map warna sudah disesuaikan dengan label hasil prediksi
+
             fig = px.pie(distribusi, values='Jumlah', names='Klasifikasi', hole=0.4, 
-                         color_discrete_map={'AI (FAKE)': '#ff9999', 'ASLI (REAL)': '#66b3ff'})
+                         color_discrete_map={'AI':'#ff9999', 'ASLI':'#66b3ff'})
             st.plotly_chart(fig, use_container_width=True)
-            
+
             with st.expander("Tampilkan Detail Riwayat Prediksi"):
                 df_history = df_stat.copy()
-                df_display = df_history.drop(columns=["Tingkat Keyakinan"], errors='ignore')
+                df_display = df_history.drop(columns=["Akurasi (%)", "Tingkat Keyakinan"], errors='ignore')
                 df_display.index = df_display.index + 1 
                 st.dataframe(df_display, use_container_width=True)
-                
+
+                # Menghapus semua riwayat di Google Sheets
                 if st.button("Hapus Semua Riwayat", use_container_width=True):
+                    # Timpa dengan DataFrame kosong (hanya header)
                     df_kosong = pd.DataFrame(columns=["Nama Berkas", "Hasil", "Akurasi (%)", "Waktu (s)"])
                     conn.update(worksheet="Sheet1", data=df_kosong)
                     st.rerun()
         else:
             st.info("Riwayat prediksi masih kosong. Silakan lakukan deteksi terlebih dahulu.")
-            
+
     except Exception as e:
         st.error(f"Gagal memuat data dari Google Sheets. Pastikan koneksi dan Secrets sudah dikonfigurasi dengan benar. Error: {e}")
 
