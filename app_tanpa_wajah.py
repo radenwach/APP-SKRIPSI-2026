@@ -135,7 +135,7 @@ elif menu == "Prediksi":
         uploaded_file = st.file_uploader("Unggah Potret Manusia (JPG/PNG)", type=["jpg", "jpeg", "png"])
         if uploaded_file is not None:
             image_uploaded = Image.open(uploaded_file)
-            st.image(image_uploaded, caption="Citra yang Diunggah", width=230)
+            st.image(image_uploaded, caption="Citra yang Diunggah", width=350)
             
     with col2:
         # --- TAMBAHAN JARAK AGAR HASIL PREDIKSI AGAK KE BAWAH ---
