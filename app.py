@@ -128,13 +128,14 @@ def predict(img, model):
 with st.sidebar:
     st.title("Navigasi Sistem")
     
-    if st.button("BERANDA", use_container_width=True):
+    # REVISI: Mengganti use_container_width=True menjadi width="stretch"
+    if st.button("BERANDA", width="stretch"):
         st.session_state.menu = "Beranda"
-    if st.button("PREDIKSI", use_container_width=True):
+    if st.button("PREDIKSI", width="stretch"):
         st.session_state.menu = "Prediksi"
-    if st.button("STATISTIK", use_container_width=True):
+    if st.button("STATISTIK", width="stretch"):
         st.session_state.menu = "Statistik"
-    if st.button("TENTANG", use_container_width=True):
+    if st.button("TENTANG", width="stretch"):
         st.session_state.menu = "Tentang"
 
 menu = st.session_state.menu
@@ -157,6 +158,7 @@ if menu == "Beranda":
 
     with col_kanan:
         try:
+            # st.image tetap menggunakan use_container_width karena parameternya beda
             st.image("ilustrasi.png", use_container_width=True)
         except:
             st.empty() 
@@ -178,7 +180,8 @@ elif menu == "Prediksi":
         
         st.subheader("Hasil Prediksi")
         if uploaded_file is not None:
-            if st.button("Mulai Prediksi", use_container_width=True):
+            # REVISI: Mengganti use_container_width=True menjadi width="stretch"
+            if st.button("Mulai Prediksi", width="stretch"):
                 
                 # --- 1. PROSES GATEKEEPER ---
                 with st.spinner('Memverifikasi struktur citra...'):
@@ -272,15 +275,18 @@ elif menu == "Statistik":
             
             fig = px.pie(distribusi, values='Jumlah', names='Klasifikasi', hole=0.4, 
                          color_discrete_map={'AI (FAKE)':'#ff9999', 'ASLI (REAL)':'#66b3ff'})
+            # REVISI: st.plotly_chart tetap pakai use_container_width (ini beda dengan st.button)
             st.plotly_chart(fig, use_container_width=True)
             
             with st.expander("Tampilkan Detail Riwayat Prediksi"):
                 df_history = df_stat.copy()
                 df_display = df_history.drop(columns=["Akurasi (%)", "Tingkat Keyakinan"], errors='ignore')
                 df_display.index = df_display.index + 1 
+                # REVISI: st.dataframe tetap pakai use_container_width
                 st.dataframe(df_display, use_container_width=True)
                 
-                if st.button("Hapus Semua Riwayat", use_container_width=True):
+                # REVISI: Mengganti use_container_width=True menjadi width="stretch"
+                if st.button("Hapus Semua Riwayat", width="stretch"):
                     df_kosong = pd.DataFrame(columns=["Nama Berkas", "Hasil", "Akurasi (%)", "Waktu (s)"])
                     conn.update(worksheet="Sheet1", data=df_kosong)
                     st.rerun()
