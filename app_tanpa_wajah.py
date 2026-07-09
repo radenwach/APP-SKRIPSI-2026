@@ -45,7 +45,6 @@ st.markdown("""
         text-align: center;
         margin: 0;
     }
-    
     /* --- GAYA BARU UNTUK BOX UPLOAD --- */
     [data-testid="stFileUploadDropzone"] {
         border: 2px dashed #007BFF; /* Garis putus-putus warna biru */
@@ -54,7 +53,6 @@ st.markdown("""
         padding: 20px;
         transition: all 0.3s ease;  /* Efek transisi halus */
     }
-    
     /* Efek saat mouse diarahkan ke kotak upload */
     [data-testid="stFileUploadDropzone"]:hover {
         background-color: #e1effe;
@@ -66,21 +64,26 @@ st.markdown("""
 # --- LOAD MODEL ---
 @st.cache_resource
 def load_my_model():
-    # Pastikan file model berada di folder yang sama dengan app.py
+    # Pastikan file model berada di folder yang sama dengan script ini
     model = tf.keras.models.load_model('model_efficientnet_adamw.keras')
     return model
 
-model = load_my_model()
+try:
+    model = load_my_model()
+except Exception as e:
+    st.error(f"Gagal memuat model. Pastikan file model tersedia. Error: {e}")
+    st.stop()
 
-# --- FUNGSI PREDIKSI ---
+# --- FUNGSI PREDIKSI (Kualitas Resizing LANCZOS) ---
 def predict(img, model):
     if img.mode != "RGB":
         img = img.convert("RGB")
-    
-    img_resized = img.resize((224, 224), Image.NEAREST)
+
+    # Menggunakan LANCZOS untuk kualitas downsampling yang lebih baik pada CNN
+    img_resized = img.resize((224, 224), Image.Resampling.LANCZOS)
     img_array = keras_image.img_to_array(img_resized)
     img_array = np.expand_dims(img_array, axis=0)
-    
+
     prediction = model.predict(img_array, verbose=0)
     return prediction
 
@@ -123,25 +126,9 @@ if menu == "Beranda":
         try:
             st.image("ilustrasi.png", use_container_width=True)
         except:
-            st.empty() # Mencegah error jika file ilustrasi.png tidak ditemukan
+            pass # Mengabaikan jika file tidak ditemukan tanpa merusak UI
 
-# --- FUNGSI PREDIKSI (Diperbarui untuk Kualitas Resizing) ---
-def predict(img, model):
-    if img.mode != "RGB":
-        img = img.convert("RGB")
-
-    # Menggunakan LANCZOS untuk kualitas downsampling yang lebih baik pada CNN
-    img_resized = img.resize((224, 224), Image.Resampling.LANCZOS)
-    img_array = keras_image.img_to_array(img_resized)
-    img_array = np.expand_dims(img_array, axis=0)
-
-    # Preprocessing tambahan jika model Anda membutuhkannya (misal: tf.keras.applications.efficientnet.preprocess_input)
-    # img_array = tf.keras.applications.efficientnet.preprocess_input(img_array)
-
-    prediction = model.predict(img_array, verbose=0)
-    return prediction
-
-# --- PREDIKSI (Diperbarui untuk Koreksi Orientasi) ---
+# --- PREDIKSI ---
 elif menu == "Prediksi":
     st.header("Deteksi Citra")
 
@@ -153,34 +140,25 @@ elif menu == "Prediksi":
             try:
                 # 1. Membuka gambar asli
                 original_image = Image.open(uploaded_file)
-
-                # 2. --- BAGIAN PENTING: Koreksi Orientasi EXIF ---
-                # ImageOps.exif_transpose membaca tag orientasi dan merotasi gambar
-                # agar ditampilkan dengan benar di browser.
+                # 2. Koreksi Orientasi EXIF
                 fixed_image = ImageOps.exif_transpose(original_image)
-
                 # 3. Menampilkan gambar yang sudah dikoreksi
-                st.image(fixed_image, caption="Citra yang Diunggah (Telah Disesuaikan)", width=350)
-
+                st.image(fixed_image, caption="Citra yang Diunggah", width=350)
             except Exception as e:
                 st.error(f"Gagal memproses gambar: {e}")
-                # Fallback jika terjadi error EXIF, tampilkan apa adanya
+                # Fallback jika terjadi error EXIF
                 fixed_image = Image.open(uploaded_file)
-                st.image(fixed_image, caption="Citra yang Diunggah (Asli)", width=350)
+                st.image(fixed_image, caption="Citra Asli", width=350)
 
     with col2:
-        # --- TAMBAHAN JARAK AGAR HASIL PREDIKSI AGAK KE BAWAH ---
         st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
-
         st.subheader("Hasil Prediksi")
-        # Menggunakan fixed_image yang sudah dikoreksi jika ada
+        
         if uploaded_file is not None:
             if st.button("Mulai Prediksi", use_container_width=True):
-                # Pastikan variabel fixed_image tersedia
                 if 'fixed_image' in locals():
                     with st.spinner('Menganalisis fitur citra...'):
                         start_time = time.time()
-                        # Gunakan fixed_image untuk prediksi, bukan image_uploaded mentah
                         result = predict(fixed_image, model)
                         end_time = time.time()
 
@@ -188,19 +166,18 @@ elif menu == "Prediksi":
                         prob_real = float(result[0][0])
                         prob_fake = 1 - prob_real
 
-                        # --- IMPLEMENTASI THRESHOLD & KOTAK HASIL KUSTOM ---
-                        # Threshold diturunkan menjadi 0.6 sesuai permintaan Anda
+                        # Implementasi Threshold (0.6)
                         THRESHOLD = 0.6
                         if prob_real > THRESHOLD:
                             hasil_label = "ASLI (REAL)"
                             prob_final = prob_real
-                            warna_teks = '#155724' # Hijau tua
-                            bg_color = '#d4edda'   # Hijau muda
+                            warna_teks = '#155724'
+                            bg_color = '#d4edda'
                         else:
                             hasil_label = "AI (FAKE)"
                             prob_final = prob_fake
-                            warna_teks = '#FF0000' # Merah
-                            bg_color = '#f8d7da'   # Merah muda
+                            warna_teks = '#FF0000'
+                            bg_color = '#f8d7da'
 
                         # Menampilkan kotak hasil dengan font besar dari HTML
                         st.markdown(f"""
@@ -214,14 +191,12 @@ elif menu == "Prediksi":
                         st.info(f"Waktu Pemrosesan: {waktu_inferensi:.2f} detik")
                         st.write(f"Keyakinan Model: {prob_final * 100:.2f}%")
 
-                        # --- SIMPAN PERMANEN KE GOOGLE SHEETS ---
+                        # Simpan ke Google Sheets
                         try:
                             conn = st.connection("gsheets", type=GSheetsConnection)
-                            # Membaca data lama terlebih dahulu
                             df_lama = conn.read(worksheet="Sheet1", usecols=list(range(4)))
                             df_lama = df_lama.dropna(how="all")
 
-                            # Membuat baris data baru
                             df_baru = pd.DataFrame([{
                                 "Nama Berkas": uploaded_file.name,
                                 "Hasil": hasil_label,
@@ -229,23 +204,21 @@ elif menu == "Prediksi":
                                 "Waktu (s)": waktu_inferensi
                             }])
 
-                            # Menggabungkan dan memperbarui
                             df_update = pd.concat([df_lama, df_baru], ignore_index=True)
                             conn.update(worksheet="Sheet1", data=df_update)
                         except Exception as e:
-                            st.warning(f"Terjadi kesalahan saat menyimpan ke Google Sheets: {e}")
+                            st.warning(f"Gagal menyimpan ke Google Sheets: {e}")
                 else:
                     st.error("Gambar belum dimuat dengan benar.")
-
         else:
             st.info("Silakan unggah potret terlebih dahulu untuk memulai prediksi.")
+
 # --- STATISTIK ---
 elif menu == "Statistik":
     st.header("Dasbor Statistik")
     st.write("Panel pemantauan analitik penggunaan sistem secara keseluruhan.")
     
     try:
-        # Menghubungkan dan membaca dari Google Sheets (ttl=0 agar data selalu update realtime)
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_stat = conn.read(worksheet="Sheet1", usecols=list(range(4)), ttl=0)
         df_stat = df_stat.dropna(how="all")
@@ -256,7 +229,7 @@ elif menu == "Statistik":
             
             col1, col2, col3 = st.columns(3)
             col1.metric(label="Total Citra Diproses", value=f"{total_data} Citra")
-            col2.metric(label="Akurasi Model Yang Digunakan", value="87.0%") 
+            col2.metric(label="Akurasi Model", value="87.0%") 
             col3.metric(label="Rata-rata Waktu Inferensi", value=f"{rata_waktu:.2f} s")
             
             st.markdown("---")
@@ -265,19 +238,18 @@ elif menu == "Statistik":
             distribusi = df_stat["Hasil"].value_counts().reset_index()
             distribusi.columns = ['Klasifikasi', 'Jumlah']
             
+            # Map warna sudah disesuaikan dengan label hasil prediksi
             fig = px.pie(distribusi, values='Jumlah', names='Klasifikasi', hole=0.4, 
-                         color_discrete_map={'AI':'#ff9999', 'ASLI':'#66b3ff'})
+                         color_discrete_map={'AI (FAKE)': '#ff9999', 'ASLI (REAL)': '#66b3ff'})
             st.plotly_chart(fig, use_container_width=True)
             
             with st.expander("Tampilkan Detail Riwayat Prediksi"):
                 df_history = df_stat.copy()
-                df_display = df_history.drop(columns=["Akurasi (%)", "Tingkat Keyakinan"], errors='ignore')
+                df_display = df_history.drop(columns=["Tingkat Keyakinan"], errors='ignore')
                 df_display.index = df_display.index + 1 
                 st.dataframe(df_display, use_container_width=True)
                 
-                # Menghapus semua riwayat di Google Sheets
                 if st.button("Hapus Semua Riwayat", use_container_width=True):
-                    # Timpa dengan DataFrame kosong (hanya header)
                     df_kosong = pd.DataFrame(columns=["Nama Berkas", "Hasil", "Akurasi (%)", "Waktu (s)"])
                     conn.update(worksheet="Sheet1", data=df_kosong)
                     st.rerun()
