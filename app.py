@@ -74,44 +74,56 @@ def load_my_model():
 
 model = load_my_model()
 
-# --- FUNGSI GATEKEEPER (PRA-SELEKSI OOD DATA) ---
+# --- FUNGSI GATEKEEPER (PRA-SELEKSI OOD DATA + DEBUG MODE) ---
 def cek_validitas_potret(img):
     """
     Memvalidasi apakah gambar yang diunggah memiliki 
     struktur anatomi manusia menggunakan OpenCV Haar Cascade lokal.
-    Dilengkapi dengan perlindungan Error Handling untuk lingkungan Cloud.
+    Dilengkapi dengan notifikasi debug otomatis untuk pelacakan server.
     """
     try:
-        import cv2 # Memanggil cv2 di dalam fungsi untuk melokalisasi error
+        import cv2
         img_cv = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
         gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
         
-        # Mengambil path absolut dari folder tempat app.py ini berada
+        # Mengambil path absolut dari folder tempat app.py berada
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
         cascade_path = os.path.join(BASE_DIR, 'haarcascade_frontalface_default.xml')
         
-        # Pengecekan apakah modul cv2 di server cloud berjalan normal
-        if hasattr(cv2, 'CascadeClassifier'):
-            face_cascade = cv2.CascadeClassifier(cascade_path)
-            
-            # Jika XML gagal dimuat, lakukan bypass
-            if face_cascade.empty():
-                return True
-                
-            fitur_anatomi = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=8, minSize=(60, 60))
-            
-            if len(fitur_anatomi) > 0:
-                return True
-            return False
-        else:
-            # Jika cv2 rusak di server cloud (AttributeError), loloskan gambar
+        # CEK 1: Apakah file XML benar-benar ada di server?
+        if not os.path.exists(cascade_path):
+            st.toast("⚠️ LOG: File XML tidak ditemukan di direktori server! Sistem melakukan bypass.", icon="⚠️")
             return True
             
+        face_cascade = cv2.CascadeClassifier(cascade_path)
+        
+        # CEK 2: Apakah OpenCV gagal memuat file XML tersebut?
+        if face_cascade.empty():
+            st.toast("⚠️ LOG: OpenCV gagal memuat Haar Cascade! Sistem melakukan bypass.", icon="⚠️")
+            return True
+            
+        # PROSES DETEKSI: Parameter diperketat secara maksimal
+        # minNeighbors dinaikkan ke 12 (Sangat Ketat)
+        # minSize dinaikkan ke 80x80 (Mengabaikan pola kecil seperti tekstur bulu hewan)
+        fitur_anatomi = face_cascade.detectMultiScale(
+            gray, 
+            scaleFactor=1.1, 
+            minNeighbors=12, 
+            minSize=(80, 80)
+        )
+        
+        # CEK 3: Hasil Deteksi
+        if len(fitur_anatomi) > 0:
+            st.toast(f"🎯 LOG: Struktur potret tervalidasi ({len(fitur_anatomi)} objek ditemukan). Diteruskan ke EfficientNetB0.", icon="✅")
+            return True
+        else:
+            st.toast("🚫 LOG: Objek bukan potret manusia! Proses dihentikan.", icon="🛑")
+            return False
+            
     except Exception as e:
-        # Jika terjadi error apapun (modul hilang, memori penuh, dll), sistem 
-        # akan otomatis meloloskan gambar agar antarmuka tidak crash saat sidang.
+        # Jika terjadi error library di level server
+        st.toast(f"❌ LOG ERROR OPENCV: {str(e)}. Sistem melakukan bypass keamanan.", icon="❌")
         return True
-
 # --- FUNGSI PREDIKSI ---
 def predict(img, model):
     if img.mode != "RGB":
