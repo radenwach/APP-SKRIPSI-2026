@@ -7,10 +7,11 @@ import pandas as pd
 import plotly.express as px
 from streamlit_gsheets import GSheetsConnection
 from tensorflow.keras.preprocessing import image as keras_image
+import cv2  # Pustaka untuk Gatekeeper (OpenCV)
 
 # --- KONFIGURASI HALAMAN ---
 st.set_page_config(
-    page_title="APLIKASI SKRIPSI",
+    page_title="Sistem Deteksi Potret AI",
     page_icon="🔍",
     layout="wide"
 )
@@ -63,14 +64,32 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- LOAD MODEL ---
+# --- LOAD MODEL UTAMA (EfficientNetB0) ---
 @st.cache_resource
 def load_my_model():
-    # Pastikan file model berada di folder yang sama dengan app.py
     model = tf.keras.models.load_model('model_efficientnet_adamw.keras')
     return model
 
 model = load_my_model()
+
+# --- FUNGSI GATEKEEPER (PRA-SELEKSI OOD DATA) ---
+def cek_validitas_potret(img):
+    """
+    Memvalidasi apakah gambar yang diunggah memiliki 
+    struktur anatomi manusia menggunakan OpenCV Haar Cascade.
+    """
+    img_cv = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+    gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+    
+    # Load model Haar Cascade bawaan OpenCV
+    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+    
+    # Deteksi fitur anatomi (parameter dilonggarkan agar tidak terlalu ketat)
+    fitur_anatomi = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(30, 30))
+    
+    if len(fitur_anatomi) > 0:
+        return True
+    return False
 
 # --- FUNGSI PREDIKSI ---
 def predict(img, model):
@@ -88,7 +107,6 @@ def predict(img, model):
 with st.sidebar:
     st.title("Navigasi Sistem")
     
-    # Menambahkan parameter use_container_width=True agar tombol memanjang penuh
     if st.button("BERANDA", use_container_width=True):
         st.session_state.menu = "Beranda"
     if st.button("PREDIKSI", use_container_width=True):
@@ -98,15 +116,12 @@ with st.sidebar:
     if st.button("TENTANG", use_container_width=True):
         st.session_state.menu = "Tentang"
 
-# Ambil menu yang sedang aktif dari session state
 menu = st.session_state.menu
 
 # --- BERANDA ---
 if menu == "Beranda":
-    # Menambahkan jarak ke bawah khusus untuk halaman Beranda
     st.markdown("<div style='margin-top: 50px;'></div>", unsafe_allow_html=True)
     
-    # Membuat proporsi 1.5 untuk teks (kiri) dan 1 untuk gambar (kanan)
     col_kiri, col_kanan = st.columns([1.5, 1])
     
     with col_kiri:
@@ -123,7 +138,7 @@ if menu == "Beranda":
         try:
             st.image("ilustrasi.png", use_container_width=True)
         except:
-            st.empty() # Mencegah error jika file ilustrasi.png tidak ditemukan
+            st.empty() 
 
 # --- PREDIKSI ---
 elif menu == "Prediksi":
@@ -138,65 +153,74 @@ elif menu == "Prediksi":
             st.image(image_uploaded, caption="Citra yang Diunggah", width=230)
             
     with col2:
-        # --- TAMBAHAN JARAK AGAR HASIL PREDIKSI AGAK KE BAWAH ---
         st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
         
         st.subheader("Hasil Prediksi")
         if uploaded_file is not None:
             if st.button("Mulai Prediksi", use_container_width=True):
-                with st.spinner('Menganalisis fitur citra...'):
-                    start_time = time.time()
-                    result = predict(image_uploaded, model)
-                    end_time = time.time()
-                    
-                    waktu_inferensi = end_time - start_time
-                    prob_real = float(result[0][0])
-                    prob_fake = 1 - prob_real
-                    
-                    # --- IMPLEMENTASI THRESHOLD & KOTAK HASIL KUSTOM ---
-                    THRESHOLD = 0.7
-                    if prob_real > THRESHOLD:
-                        hasil_label = "ASLI (REAL)"
-                        prob_final = prob_real
-                        warna_teks = '#155724' # Hijau tua untuk teks
-                        bg_color = '#d4edda'   # Hijau muda untuk latar
-                    else:
-                        hasil_label = "AI (FAKE)"
-                        prob_final = prob_fake
-                        warna_teks = '#FF0000' # Merah cerah menyala untuk teks
-                        bg_color = '#f8d7da'   # Merah muda untuk latar
-                    
-                    # Menampilkan kotak hasil dengan font besar dari HTML
-                    st.markdown(f"""
-                        <div style='background-color: {bg_color}; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid {warna_teks}40;'>
-                            <div class='result-text' style='color: {warna_teks};'>
-                                PREDIKSI: {hasil_label}
+                
+                # --- 1. PROSES GATEKEEPER ---
+                with st.spinner('Memverifikasi struktur citra...'):
+                    is_potret_valid = cek_validitas_potret(image_uploaded)
+                
+                # --- 2. LOGIKA PERCABANGAN ---
+                if not is_potret_valid:
+                    # JIKA GAGAL: Gambar bukan potret manusia
+                    st.error("Sistem mendeteksi bahwa gambar ini BUKAN citra potret manusia. Silakan unggah gambar yang relevan untuk menghindari kesalahan deteksi.")
+                
+                else:
+                    # JIKA LOLOS: Eksekusi model utama EfficientNetB0
+                    with st.spinner('Menganalisis fitur citra dengan EfficientNetB0...'):
+                        start_time = time.time()
+                        result = predict(image_uploaded, model)
+                        end_time = time.time()
+                        
+                        waktu_inferensi = end_time - start_time
+                        prob_real = float(result[0][0])
+                        prob_fake = 1 - prob_real
+                        
+                        # --- IMPLEMENTASI THRESHOLD ---
+                        THRESHOLD = 0.7
+                        if prob_real > THRESHOLD:
+                            hasil_label = "ASLI (REAL)"
+                            prob_final = prob_real
+                            warna_teks = '#155724' 
+                            bg_color = '#d4edda'   
+                        else:
+                            hasil_label = "AI (FAKE)"
+                            prob_final = prob_fake
+                            warna_teks = '#FF0000' 
+                            bg_color = '#f8d7da'   
+                        
+                        st.markdown(f"""
+                            <div style='background-color: {bg_color}; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid {warna_teks}40;'>
+                                <div class='result-text' style='color: {warna_teks};'>
+                                    PREDIKSI: {hasil_label}
+                                </div>
                             </div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # Box info bawaan untuk metrik tambahan
-                    st.info(f"Waktu Pemrosesan: {waktu_inferensi:.2f} detik")
-                    
-                    # --- SIMPAN PERMANEN KE GOOGLE SHEETS ---
-                    try:
-                        conn = st.connection("gsheets", type=GSheetsConnection)
-                        df_lama = conn.read(worksheet="Sheet1", usecols=list(range(4)))
+                        """, unsafe_allow_html=True)
                         
-                        df_baru = pd.DataFrame([{
-                            "Nama Berkas": uploaded_file.name,
-                            "Hasil": hasil_label,
-                            "Akurasi (%)": prob_final * 100,
-                            "Waktu (s)": waktu_inferensi
-                        }])
+                        st.info(f"Waktu Pemrosesan: {waktu_inferensi:.2f} detik")
                         
-                        df_lama = df_lama.dropna(how="all")
-                        df_update = pd.concat([df_lama, df_baru], ignore_index=True)
-                        
-                        conn.update(worksheet="Sheet1", data=df_update)
-                    except Exception as e:
-                        st.warning(f"Terjadi kesalahan saat menyimpan ke Google Sheets: {e}")
-                        
+                        # --- SIMPAN PERMANEN KE GOOGLE SHEETS ---
+                        try:
+                            conn = st.connection("gsheets", type=GSheetsConnection)
+                            df_lama = conn.read(worksheet="Sheet1", usecols=list(range(4)))
+                            
+                            df_baru = pd.DataFrame([{
+                                "Nama Berkas": uploaded_file.name,
+                                "Hasil": hasil_label,
+                                "Akurasi (%)": prob_final * 100,
+                                "Waktu (s)": waktu_inferensi
+                            }])
+                            
+                            df_lama = df_lama.dropna(how="all")
+                            df_update = pd.concat([df_lama, df_baru], ignore_index=True)
+                            
+                            conn.update(worksheet="Sheet1", data=df_update)
+                        except Exception as e:
+                            st.warning(f"Terjadi kesalahan saat menyimpan ke Google Sheets: {e}")
+                            
         else:
             st.info("Silakan unggah potret terlebih dahulu untuk memulai prediksi.")
 
@@ -206,7 +230,6 @@ elif menu == "Statistik":
     st.write("Panel pemantauan analitik penggunaan sistem secara keseluruhan.")
     
     try:
-        # Menghubungkan dan membaca dari Google Sheets (ttl=0 agar data selalu update realtime)
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_stat = conn.read(worksheet="Sheet1", usecols=list(range(4)), ttl=0)
         df_stat = df_stat.dropna(how="all")
@@ -227,7 +250,7 @@ elif menu == "Statistik":
             distribusi.columns = ['Klasifikasi', 'Jumlah']
             
             fig = px.pie(distribusi, values='Jumlah', names='Klasifikasi', hole=0.4, 
-                         color_discrete_map={'AI':'#ff9999', 'ASLI':'#66b3ff'})
+                         color_discrete_map={'AI (FAKE)':'#ff9999', 'ASLI (REAL)':'#66b3ff'})
             st.plotly_chart(fig, use_container_width=True)
             
             with st.expander("Tampilkan Detail Riwayat Prediksi"):
@@ -236,9 +259,7 @@ elif menu == "Statistik":
                 df_display.index = df_display.index + 1 
                 st.dataframe(df_display, use_container_width=True)
                 
-                # Menghapus semua riwayat di Google Sheets
                 if st.button("Hapus Semua Riwayat", use_container_width=True):
-                    # Timpa dengan DataFrame kosong (hanya header)
                     df_kosong = pd.DataFrame(columns=["Nama Berkas", "Hasil", "Akurasi (%)", "Waktu (s)"])
                     conn.update(worksheet="Sheet1", data=df_kosong)
                     st.rerun()
@@ -246,12 +267,12 @@ elif menu == "Statistik":
             st.info("Riwayat prediksi masih kosong. Silakan lakukan deteksi terlebih dahulu.")
             
     except Exception as e:
-        st.error(f"Gagal memuat data dari Google Sheets. Pastikan koneksi dan Secrets sudah dikonfigurasi dengan benar. Error: {e}")
+        st.error(f"Gagal memuat data dari Google Sheets. Error: {e}")
 
 # --- TENTANG ---
 elif menu == "Tentang":
     st.header("Tentang Penelitian")
     st.write("**Peneliti:** R. Muhammad Wachyu Fajar Sidik")
     st.write("**Instansi:** Universitas PGRI Kediri (UNP Kediri)")
-    st.write("**Topik:** Deteksi AI-Generated Portrait menggunakan EfficientNetB0 dengan Optimizer AdamW.")
+    st.write("**Topik:** Deteksi Manipulasi AI pada Citra Potret Menggunakan Arsitektur Lightweight EfficientNetB0 dengan Optimizer AdamW.")
     st.write("Sistem ini dibangun sebagai perwujudan purwarupa dari penelitian akademis untuk meningkatkan keamanan digital dalam mendeteksi ancaman potret sintesis (*deepfake*).")
