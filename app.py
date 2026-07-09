@@ -8,6 +8,8 @@ import plotly.express as px
 from streamlit_gsheets import GSheetsConnection
 from tensorflow.keras.preprocessing import image as keras_image
 import cv2  # Pustaka untuk Gatekeeper (OpenCV)
+import os
+import urllib.request
 
 # --- KONFIGURASI HALAMAN ---
 st.set_page_config(
@@ -81,10 +83,18 @@ def cek_validitas_potret(img):
     img_cv = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
     gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
     
-    # Load model Haar Cascade bawaan OpenCV
-    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+    # Menentukan nama file XML
+    cascade_path = 'haarcascade_frontalface_default.xml'
     
-    # Deteksi fitur anatomi (parameter dilonggarkan agar tidak terlalu ketat)
+    # Solusi Cloud: Jika file XML tidak ada di folder, download otomatis dari repositori resmi OpenCV
+    if not os.path.isfile(cascade_path):
+        url = "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_frontalface_default.xml"
+        urllib.request.urlretrieve(url, cascade_path)
+    
+    # Load model Haar Cascade dari file lokal yang sudah dipastikan ada
+    face_cascade = cv2.CascadeClassifier(cascade_path)
+    
+    # Deteksi fitur anatomi
     fitur_anatomi = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(30, 30))
     
     if len(fitur_anatomi) > 0:
