@@ -111,11 +111,20 @@ def cek_validitas_potret(img):
             minNeighbors=12, 
             minSize=(80, 80)
         )
+        
+        # CEK 3: Hasil Deteksi
+        if len(fitur_anatomi) > 0:
+            st.toast(f"🎯 LOG: Struktur potret tervalidasi ({len(fitur_anatomi)} objek ditemukan). Diteruskan ke EfficientNetB0.", icon="✅")
+            return True
+        else:
+            st.toast("🚫 LOG: Objek bukan potret manusia! Proses dihentikan.", icon="🛑")
+            return False
             
     except Exception as e:
         # Jika terjadi error library di level server
         st.toast(f"❌ LOG ERROR OPENCV: {str(e)}. Sistem melakukan bypass keamanan.", icon="❌")
         return True
+        
 # --- FUNGSI PREDIKSI ---
 def predict(img, model):
     if img.mode != "RGB":
