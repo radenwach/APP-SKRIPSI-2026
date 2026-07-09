@@ -98,7 +98,7 @@ def cek_validitas_potret(img):
             if face_cascade.empty():
                 return True
                 
-            fitur_anatomi = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(30, 30))
+            fitur_anatomi = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=8, minSize=(60, 60))
             
             if len(fitur_anatomi) > 0:
                 return True
