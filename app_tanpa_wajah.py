@@ -154,7 +154,7 @@ elif menu == "Prediksi":
                     prob_fake = 1 - prob_real
 
                     # --- IMPLEMENTASI THRESHOLD & KOTAK HASIL KUSTOM ---
-                    THRESHOLD = 0.6
+                    THRESHOLD = 0.7
                     if prob_real > THRESHOLD:
                         hasil_label = "ASLI (REAL)"
                         prob_final = prob_real
