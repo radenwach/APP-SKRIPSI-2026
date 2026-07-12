@@ -132,10 +132,22 @@ elif menu == "Prediksi":
     col1, col2 = st.columns(2)
 
     with col1:
-        uploaded_file = st.file_uploader("Unggah Potret Manusia (JPG/PNG)", type=["jpg", "jpeg", "png"])
-        if uploaded_file is not None:
-            image_uploaded = Image.open(uploaded_file)
-            st.image(image_uploaded, caption="Citra yang Diunggah", width=350)
+    uploaded_file = st.file_uploader("Unggah Potret Manusia")
+    
+    if uploaded_file is not None:
+        # Ambil ekstensi file dari nama aslinya dan jadikan huruf kecil
+        file_extension = uploaded_file.name.split('.')[-1].lower()
+        
+        # Validasi apakah ekstensi termasuk dalam daftar yang diizinkan
+        if file_extension in ["jpg", "jpeg", "png"]:
+            try:
+                image_uploaded = Image.open(uploaded_file)
+                st.image(image_uploaded, caption="Citra yang Diunggah", width=350)
+            except Exception:
+                st.error("Terjadi kesalahan: File rusak atau bukan gambar yang valid.")
+        else:
+            # Tampilkan pesan error jika bukan gambar
+            st.error("Ekstensi tidak sesuai. Harap unggah file dengan format JPG, JPEG, atau PNG.")
 
     with col2:
         # --- TAMBAHAN JARAK AGAR HASIL PREDIKSI AGAK KE BAWAH ---
