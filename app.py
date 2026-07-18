@@ -144,7 +144,7 @@ with st.sidebar:
     # REVISI: Mengganti use_container_width=True menjadi width="stretch"
     if st.button("BERANDA", width="stretch"):
         st.session_state.menu = "Beranda"
-    if st.button("PREDIKSI", width="stretch"):
+    if st.button("DETEKSI", width="stretch"):
         st.session_state.menu = "Prediksi"
     if st.button("STATISTIK", width="stretch"):
         st.session_state.menu = "Statistik"
@@ -177,7 +177,7 @@ if menu == "Beranda":
             st.empty() 
 
 # --- PREDIKSI ---
-elif menu == "Prediksi":
+elif menu == "Deteksi":
     st.header("Deteksi Citra")
     
     col1, col2 = st.columns(2)
@@ -191,10 +191,10 @@ elif menu == "Prediksi":
     with col2:
         st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
         
-        st.subheader("Hasil Prediksi")
+        st.subheader("Hasil Klasifikasi")
         if uploaded_file is not None:
             # REVISI: Mengganti use_container_width=True menjadi width="stretch"
-            if st.button("Mulai Prediksi", width="stretch"):
+            if st.button("Mulai Klasifikasi", width="stretch"):
                 
                 # --- 1. PROSES GATEKEEPER ---
                 with st.spinner('Memverifikasi struktur citra...'):
