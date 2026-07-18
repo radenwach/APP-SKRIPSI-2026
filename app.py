@@ -145,7 +145,7 @@ with st.sidebar:
     if st.button("BERANDA", width="stretch"):
         st.session_state.menu = "Beranda"
     if st.button("DETEKSI", width="stretch"):
-        st.session_state.menu = "Prediksi"
+        st.session_state.menu = "Deteksi"
     if st.button("STATISTIK", width="stretch"):
         st.session_state.menu = "Statistik"
     if st.button("TENTANG", width="stretch"):
