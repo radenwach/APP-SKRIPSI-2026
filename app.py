@@ -232,7 +232,7 @@ elif menu == "Deteksi":
                         st.markdown(f"""
                             <div style='background-color: {bg_color}; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid {warna_teks}40;'>
                                 <div class='result-text' style='color: {warna_teks};'>
-                                    PREDIKSI: {hasil_label}
+                                    KLASIFIKASI: {hasil_label}
                                 </div>
                             </div>
                         """, unsafe_allow_html=True)
