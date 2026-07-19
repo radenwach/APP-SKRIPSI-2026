@@ -125,7 +125,7 @@ def cek_validitas_potret(img):
         st.toast(f"❌ LOG ERROR OPENCV: {str(e)}. Sistem melakukan bypass keamanan.", icon="❌")
         return True
         
-# --- FUNGSI PREDIKSI ---
+# --- FUNGSI KLASIFIKASI ---
 def predict(img, model):
     if img.mode != "RGB":
         img = img.convert("RGB")
@@ -165,7 +165,7 @@ if menu == "Beranda":
         Aplikasi ini digunakan untuk mendeteksi apakah suatu citra merupakan potret manusia asli atau hasil sintesis generasi AI (*deepfake*). 
         Menggunakan model *Convolutional Neural Network* jenis **EfficientNetB0**, sistem menganalisis anomali piksel, tekstur, hingga konteks pencahayaan gambar secara menyeluruh.
         
-        Gunakan menu di sidebar untuk mulai melakukan prediksi.
+        Gunakan menu di sidebar untuk mulai melakukan deteksi Citra.
         """)
         st.info("💡 Sistem ini dirancang untuk membaca konteks pencahayaan, tekstur, dan latar belakang potret secara utuh.")
 
@@ -259,7 +259,7 @@ elif menu == "Deteksi":
                             st.warning(f"Terjadi kesalahan saat menyimpan ke Google Sheets: {e}")
                             
         else:
-            st.info("Silakan unggah potret terlebih dahulu untuk memulai prediksi.")
+            st.info("Silakan unggah potret terlebih dahulu untuk memulai Deteksi.")
 
 # --- STATISTIK ---
 elif menu == "Statistik":
@@ -304,7 +304,7 @@ elif menu == "Statistik":
                     conn.update(worksheet="Sheet1", data=df_kosong)
                     st.rerun()
         else:
-            st.info("Riwayat prediksi masih kosong. Silakan lakukan deteksi terlebih dahulu.")
+            st.info("Riwayat deteksi masih kosong. Silakan lakukan deteksi terlebih dahulu.")
             
     except Exception as e:
         st.error(f"Gagal memuat data dari Google Sheets. Error: {e}")
