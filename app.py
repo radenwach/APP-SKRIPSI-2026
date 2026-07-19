@@ -291,7 +291,7 @@ elif menu == "Statistik":
             # REVISI: st.plotly_chart tetap pakai use_container_width (ini beda dengan st.button)
             st.plotly_chart(fig, use_container_width=True)
             
-            with st.expander("Tampilkan Detail Riwayat Prediksi"):
+            with st.expander("Tampilkan Detail Riwayat Klasifikasi"):
                 df_history = df_stat.copy()
                 df_display = df_history.drop(columns=["Akurasi (%)", "Tingkat Keyakinan"], errors='ignore')
                 df_display.index = df_display.index + 1 
